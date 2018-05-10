@@ -1,21 +1,22 @@
 package com.onelogin.saml2.settings;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.security.PrivateKey;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.LinkedHashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
 
+import com.onelogin.saml2.authn.SamlResponse;
+import com.onelogin.saml2.http.HttpRequest;
 import org.apache.commons.lang3.StringUtils;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,6 +24,12 @@ import com.onelogin.saml2.exception.Error;
 import com.onelogin.saml2.model.Contact;
 import com.onelogin.saml2.model.Organization;
 import com.onelogin.saml2.util.Util;
+
+import com.trivantis.types.EntityId;
+import org.json.simple.parser.JSONParser;
+
+import javax.swing.text.html.parser.Entity;
+import javax.xml.bind.Element;
 
 /**
  * SettingsBuilder class of OneLogin's Java Toolkit.
@@ -45,64 +52,64 @@ public class SettingsBuilder {
 	 */
 	private Saml2Settings saml2Setting;
 
-	public final static String STRICT_PROPERTY_KEY = "onelogin.saml2.strict";
-	public final static String DEBUG_PROPERTY_KEY = "onelogin.saml2.debug";
+	public final static String STRICT_PROPERTY_KEY = "strict";
+	public final static String DEBUG_PROPERTY_KEY = "debug";
 
 	// SP
-	public final static String SP_ENTITYID_PROPERTY_KEY = "onelogin.saml2.sp.entityid";
-	public final static String SP_ASSERTION_CONSUMER_SERVICE_URL_PROPERTY_KEY = "onelogin.saml2.sp.assertion_consumer_service.url";
-	public final static String SP_ASSERTION_CONSUMER_SERVICE_BINDING_PROPERTY_KEY = "onelogin.saml2.sp.assertion_consumer_service.binding";
-	public final static String SP_SINGLE_LOGOUT_SERVICE_URL_PROPERTY_KEY = "onelogin.saml2.sp.single_logout_service.url";
-	public final static String SP_SINGLE_LOGOUT_SERVICE_BINDING_PROPERTY_KEY = "onelogin.saml2.sp.single_logout_service.binding";
-	public final static String SP_NAMEIDFORMAT_PROPERTY_KEY = "onelogin.saml2.sp.nameidformat";
+	public final static String SP_ENTITYID_PROPERTY_KEY = "sp_entityid";
+	public final static String SP_ASSERTION_CONSUMER_SERVICE_URL_PROPERTY_KEY = "sp_assertion_consumer_service_url";
+	public final static String SP_ASSERTION_CONSUMER_SERVICE_BINDING_PROPERTY_KEY = "sp_assertion_consumer_service_binding";
+	public final static String SP_SINGLE_LOGOUT_SERVICE_URL_PROPERTY_KEY = "sp_single_logout_service_url";
+	public final static String SP_SINGLE_LOGOUT_SERVICE_BINDING_PROPERTY_KEY = "sp_single_logout_service_binding";
+	public final static String SP_NAMEIDFORMAT_PROPERTY_KEY = "sp_nameidformat";
 
-	public final static String SP_X509CERT_PROPERTY_KEY = "onelogin.saml2.sp.x509cert";
-	public final static String SP_PRIVATEKEY_PROPERTY_KEY = "onelogin.saml2.sp.privatekey";
+	public final static String SP_X509CERT_PROPERTY_KEY = "sp_x509cert";
+	public final static String SP_PRIVATEKEY_PROPERTY_KEY = "sp_privatekey";
 
 	// IDP
-	public final static String IDP_ENTITYID_PROPERTY_KEY = "onelogin.saml2.idp.entityid";
-	public final static String IDP_SINGLE_SIGN_ON_SERVICE_URL_PROPERTY_KEY = "onelogin.saml2.idp.single_sign_on_service.url";
-	public final static String IDP_SINGLE_SIGN_ON_SERVICE_BINDING_PROPERTY_KEY = "onelogin.saml2.idp.single_sign_on_service.binding";
-	public final static String IDP_SINGLE_LOGOUT_SERVICE_URL_PROPERTY_KEY = "onelogin.saml2.idp.single_logout_service.url";
-	public final static String IDP_SINGLE_LOGOUT_SERVICE_RESPONSE_URL_PROPERTY_KEY = "onelogin.saml2.idp.single_logout_service.response.url";
-	public final static String IDP_SINGLE_LOGOUT_SERVICE_BINDING_PROPERTY_KEY = "onelogin.saml2.idp.single_logout_service.binding";
+	public final static String IDP_ENTITYID_PROPERTY_KEY = "idp_entityid";
+	public final static String IDP_SINGLE_SIGN_ON_SERVICE_URL_PROPERTY_KEY = "idp_single_sign_on_service_url";
+	public final static String IDP_SINGLE_SIGN_ON_SERVICE_BINDING_PROPERTY_KEY = "idp_single_sign_on_service_binding";
+	public final static String IDP_SINGLE_LOGOUT_SERVICE_URL_PROPERTY_KEY = "idp_single_logout_service_url";
+	public final static String IDP_SINGLE_LOGOUT_SERVICE_RESPONSE_URL_PROPERTY_KEY = "idp_single_logout_service_response_url";
+	public final static String IDP_SINGLE_LOGOUT_SERVICE_BINDING_PROPERTY_KEY = "idp_single_logout_service_binding";
 
-	public final static String IDP_X509CERT_PROPERTY_KEY = "onelogin.saml2.idp.x509cert";
-	public final static String IDP_X509CERTMULTI_PROPERTY_KEY = "onelogin.saml2.idp.x509certMulti";
-	public final static String CERTFINGERPRINT_PROPERTY_KEY = "onelogin.saml2.idp.certfingerprint";
-	public final static String CERTFINGERPRINT_ALGORITHM_PROPERTY_KEY = "onelogin.saml2.idp.certfingerprint_algorithm";
+	public final static String IDP_X509CERT_PROPERTY_KEY = "idp_x509cert";
+	public final static String IDP_X509CERTMULTI_PROPERTY_KEY = "idp_x509certMulti";
+	public final static String CERTFINGERPRINT_PROPERTY_KEY = "idp_certfingerprint";
+	public final static String CERTFINGERPRINT_ALGORITHM_PROPERTY_KEY = "idp_certfingerprint_algorithm";
 
 	// Security
-	public final static String SECURITY_NAMEID_ENCRYPTED = "onelogin.saml2.security.nameid_encrypted";
-	public final static String SECURITY_AUTHREQUEST_SIGNED = "onelogin.saml2.security.authnrequest_signed";
-	public final static String SECURITY_LOGOUTREQUEST_SIGNED = "onelogin.saml2.security.logoutrequest_signed";
-	public final static String SECURITY_LOGOUTRESPONSE_SIGNED = "onelogin.saml2.security.logoutresponse_signed";
-	public final static String SECURITY_WANT_MESSAGES_SIGNED = "onelogin.saml2.security.want_messages_signed";
-	public final static String SECURITY_WANT_ASSERTIONS_SIGNED = "onelogin.saml2.security.want_assertions_signed";
-	public final static String SECURITY_WANT_ASSERTIONS_ENCRYPTED = "onelogin.saml2.security.want_assertions_encrypted";
-	public final static String SECURITY_WANT_NAMEID = "onelogin.saml2.security.want_nameid";
-	public final static String SECURITY_WANT_NAMEID_ENCRYPTED = "onelogin.saml2.security.want_nameid_encrypted";
-	public final static String SECURITY_SIGN_METADATA = "onelogin.saml2.security.sign_metadata";
-	public final static String SECURITY_REQUESTED_AUTHNCONTEXT = "onelogin.saml2.security.requested_authncontext";
-	public final static String SECURITY_REQUESTED_AUTHNCONTEXTCOMPARISON = "onelogin.saml2.security.requested_authncontextcomparison";
-	public final static String SECURITY_WANT_XML_VALIDATION = "onelogin.saml2.security.want_xml_validation";
-	public final static String SECURITY_SIGNATURE_ALGORITHM = "onelogin.saml2.security.signature_algorithm";
-	public final static String SECURITY_REJECT_UNSOLICITED_RESPONSES_WITH_INRESPONSETO = "onelogin.saml2.security.reject_unsolicited_responses_with_inresponseto";
+	public final static String SECURITY_NAMEID_ENCRYPTED = "security_nameid_encrypted";
+	public final static String SECURITY_AUTHREQUEST_SIGNED = "security_authnrequest_signed";
+	public final static String SECURITY_LOGOUTREQUEST_SIGNED = "security_logoutrequest_signed";
+	public final static String SECURITY_LOGOUTRESPONSE_SIGNED = "security_logoutresponse_signed";
+	public final static String SECURITY_WANT_MESSAGES_SIGNED = "security_want_messages_signed";
+	public final static String SECURITY_WANT_ASSERTIONS_SIGNED = "security_want_assertions_signed";
+	public final static String SECURITY_WANT_ASSERTIONS_ENCRYPTED = "security_want_assertions_encrypted";
+	public final static String SECURITY_WANT_NAMEID = "security_want_nameid";
+	public final static String SECURITY_WANT_NAMEID_ENCRYPTED = "security_want_nameid_encrypted";
+	public final static String SECURITY_SIGN_METADATA = "security_sign_metadata";
+	public final static String SECURITY_REQUESTED_AUTHNCONTEXT = "security_requested_authncontext";
+	public final static String SECURITY_REQUESTED_AUTHNCONTEXTCOMPARISON = "security_requested_authncontextcomparison";
+	public final static String SECURITY_WANT_XML_VALIDATION = "security_want_xml_validation";
+	public final static String SECURITY_SIGNATURE_ALGORITHM = "security_signature_algorithm";
+	public final static String SECURITY_REJECT_UNSOLICITED_RESPONSES_WITH_INRESPONSETO = "security_reject_unsolicited_responses_with_inresponseto";
 
 	// Compress
-	public final static String COMPRESS_REQUEST = "onelogin.saml2.compress.request";
-	public final static String COMPRESS_RESPONSE = "onelogin.saml2.compress.response";
+	public final static String COMPRESS_REQUEST = "compress_request";
+	public final static String COMPRESS_RESPONSE = "compress_response";
 	
 	// Misc
-	public final static String CONTACT_TECHNICAL_GIVEN_NAME = "onelogin.saml2.contacts.technical.given_name";
-	public final static String CONTACT_TECHNICAL_EMAIL_ADDRESS = "onelogin.saml2.contacts.technical.email_address";
-	public final static String CONTACT_SUPPORT_GIVEN_NAME = "onelogin.saml2.contacts.support.given_name";
-	public final static String CONTACT_SUPPORT_EMAIL_ADDRESS = "onelogin.saml2.contacts.support.email_address";
+	public final static String CONTACT_TECHNICAL_GIVEN_NAME = "contacts_technical_given_name";
+	public final static String CONTACT_TECHNICAL_EMAIL_ADDRESS = "contacts_technical_email_address";
+	public final static String CONTACT_SUPPORT_GIVEN_NAME = "contacts_support_given_name";
+	public final static String CONTACT_SUPPORT_EMAIL_ADDRESS = "contacts_support_email_address";
 
-	public final static String ORGANIZATION_NAME = "onelogin.saml2.organization.name";
-	public final static String ORGANIZATION_DISPLAYNAME = "onelogin.saml2.organization.displayname";
-	public final static String ORGANIZATION_URL = "onelogin.saml2.organization.url";
-	public final static String ORGANIZATION_LANG = "onelogin.saml2.organization.lang";
+	public final static String ORGANIZATION_NAME = "organization_name";
+	public final static String ORGANIZATION_DISPLAYNAME = "organization_displayname";
+	public final static String ORGANIZATION_URL = "organization_url";
+	public final static String ORGANIZATION_LANG = "organization_lang";
 
 	/**
 	 * Load settings from the file
@@ -139,6 +146,81 @@ public class SettingsBuilder {
 	}
 
 	/**
+	 * Load settings from backend data
+	 *
+	 * @param request
+	 *            HttpRequest object that contains the SAML response. We need the identity provider entity id from the response.
+	 *
+	 * @return the SettingsBuilder object with the settings loaded from the backend data
+	 *
+	 * @throws IOException
+	 * @throws Error
+	 */
+	public SettingsBuilder fromBackend(HttpRequest request){
+		try {
+			String samlResponseParameter = request.getParameter("SAMLResponse");
+
+			if(samlResponseParameter != null) {
+			    this.fromFile("saml.common.properties");
+
+				SamlResponse samlResponse = new SamlResponse(request);
+				List issuers = samlResponse.getIssuers();
+
+				String entityId = (String)issuers.get(0);
+				Base64.Encoder encoder = Base64.getEncoder();
+				String encodedEntityId = encoder.encodeToString(entityId.getBytes());
+				String url = String.format("http://localhost:8085/cast/api/v1/samlsso/idpEntity/%s", encodedEntityId);
+				URL urlObj = new URL(url);
+				HttpURLConnection conn = (HttpURLConnection) urlObj.openConnection();
+				conn.setRequestMethod("GET");
+				conn.setRequestProperty("Content-Type", "application/json");
+
+				int status = conn.getResponseCode();
+				BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+				String inputLine;
+				StringBuffer content = new StringBuffer();
+				while ((inputLine = in.readLine()) != null) {
+					content.append(inputLine);
+				}
+
+				in.close();
+				conn.disconnect();
+
+				JSONParser parser = new JSONParser();
+				JSONObject jsonObj = (JSONObject) parser.parse(content.toString());
+
+				if (!jsonObj.isEmpty()) {
+					Set<String> keys = jsonObj.keySet();
+
+					JSONObject obj = (JSONObject) jsonObj.get(keys.iterator().next());
+
+					keys = obj.keySet();
+
+					for (String propertyKey : keys) {
+						System.out.print(propertyKey + ": ");
+						System.out.println(obj.get(propertyKey));
+						switch (propertyKey) {
+                            case "idpEntity":
+                                this.samlData.put("idp_entityid", obj.get(propertyKey));
+                                break;
+                            case "certificate":
+                                this.samlData.put("idp_x509cert", obj.get(propertyKey));
+                                break;
+                            case "idpSSOUrl":
+                                this.samlData.put("idp_single_sign_on_service_url", obj.get(propertyKey));
+                                break;
+                        }
+					}
+				}
+			}
+		}catch(Exception e){
+			System.out.println(e.getMessage());
+		}
+
+		return this;
+	}
+
+	/**
 	 * Loads the settings from a properties object
 	 *
 	 * @param prop
@@ -165,10 +247,10 @@ public class SettingsBuilder {
 		}
 		return this;
 	}
-	
+
 	/**
 	 * Builds the Saml2Settings object. Read the Properties object and set all the SAML settings
-	 * 
+	 *
 	 * @return the Saml2Settings object with all the SAML settings loaded
 	 *
 	 */
@@ -628,7 +710,7 @@ public class SettingsBuilder {
 		return null;
 	}
 
-	/**
+	/*
 	 * Loads a property of the type PrivateKey from file
 	 *
 	 * @param filename

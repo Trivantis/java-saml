@@ -107,6 +107,30 @@ public class SamlResponse {
 	}
 
 	/**
+	 * Constructor to have a Response object full builded and ready to validate
+	 * the saml response
+	 *
+	 * @param request
+	 *				the HttpRequest object to be processed (Contains GET and POST parameters, request URL, ...).
+	 *
+	 * @throws ValidationError
+	 * @throws SettingsException
+	 * @throws IOException
+	 * @throws SAXException
+	 * @throws ParserConfigurationException
+	 * @throws XPathExpressionException
+	 *
+	 */
+	public SamlResponse(HttpRequest request) throws XPathExpressionException, ParserConfigurationException, SAXException, IOException, SettingsException, ValidationError {
+		this.settings = null;
+
+		if (request != null) {
+			currentUrl = request.getRequestURL();
+			loadXmlFromBase64(request.getParameter("SAMLResponse"));
+		}
+	}
+
+	/**
 	 * Load a XML base64encoded SAMLResponse
 	 *
 	 * @param responseStr

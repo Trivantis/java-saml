@@ -35,6 +35,8 @@ import com.onelogin.saml2.settings.SettingsBuilder;
 import com.onelogin.saml2.util.Constants;
 import com.onelogin.saml2.util.Util;
 
+import com.trivantis.types.EntityId;
+
 /**
  * Main class of OneLogin's Java Toolkit.
  *
@@ -147,7 +149,7 @@ public class Auth {
 	 * @throws Error
 	 */
 	public Auth() throws IOException, SettingsException, Error {
-		this(new SettingsBuilder().fromFile("onelogin.saml.properties").build(), null, null);
+		this(new SettingsBuilder().fromFile("saml.properties").build(), null, null);
 	}
 
 	/**
@@ -177,7 +179,7 @@ public class Auth {
 	 * @throws Error
 	 */
 	public Auth(HttpServletRequest request, HttpServletResponse response) throws IOException, SettingsException, Error {
-		this(new SettingsBuilder().fromFile("onelogin.saml.properties").build(), request, response);
+		this(new SettingsBuilder().fromFile("saml.properties").build(), request, response);
 	}
 
 	/**
@@ -190,14 +192,14 @@ public class Auth {
 	 * @param response
 	 * 				HttpServletResponse object to be used
 	 *
-	 * @throws SettingsException 
+	 * @throws SettingsException
 	 * @throws IOException
 	 * @throws Error
 	 */
 	public Auth(String filename, HttpServletRequest request, HttpServletResponse response) throws SettingsException, IOException, Error {
 		this(new SettingsBuilder().fromFile(filename).build(), request, response);
 	}
-	
+
 	/**
 	 * Initializes the SP SAML instance.
 	 *
