@@ -14,6 +14,7 @@ import java.util.*;
 
 import com.onelogin.saml2.authn.SamlResponse;
 import com.onelogin.saml2.http.HttpRequest;
+import com.sun.javafx.binding.StringFormatter;
 import org.apache.commons.lang3.StringUtils;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -37,6 +38,11 @@ import javax.xml.bind.Element;
  * A class that implements the settings builder
  */ 
 public class SettingsBuilder {
+	/**
+	 * API KEY for the CAST System
+	 */
+	private static final String castApikey = "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJSZXZpZXdMaW5rIExvY2FsaG9zdCIsImlkIjoiMSIsIm5hbWUiOiJSZXZpZXdMaW5rIExvY2FsaG9zdCIsInNjb3BlIjoiU0NPUEVfR0VUX0NFUlRJRklDQVRFUyxTQ09QRV9HRVRfU0FNTFBST1BTIiwiaWF0IjoxNTI4NDA3NDYyLCJpc3MiOiJDQVNUIn0.xjCgT5rHUjpAl1oxB5wtFr4orJkBdMEyu7Df523Uyry-yqTjK0HF6lIGLI7wBxsWHHgcoDPg3r1-qTYs7FBGpA";
+
 	/**
 	 * Private property to construct a logger for this class.
 	 */
@@ -148,6 +154,45 @@ public class SettingsBuilder {
 	/**
 	 * Load settings from backend data
 	 *
+	 * @param url
+	 *            String that contains the URL you want to get data from
+	 *
+	 * @return the StringBuffer object queried content from the CAST system.
+	 *
+	 * @throws IOException
+	 * @throws Error
+	 */
+	private StringBuffer fetchCastData (String url) {
+		StringBuffer content = null;
+
+		try{
+			URL urlObj = new URL(url);
+			HttpURLConnection conn = (HttpURLConnection) urlObj.openConnection();
+			conn.setRequestMethod("GET");
+			conn.setRequestProperty("Content-Type", "application/json");
+			conn.setRequestProperty("API-KEY", this.castApikey);
+
+			int status = conn.getResponseCode();
+			BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+			String inputLine;
+			content = new StringBuffer();
+			while ((inputLine = in.readLine()) != null) {
+				content.append(inputLine);
+			}
+
+			in.close();
+			conn.disconnect();
+
+		}catch(Exception e){
+			System.out.println(e.getMessage());
+		}
+
+		return content;
+	}
+
+	/**
+	 * Load settings from backend data
+	 *
 	 * @param request
 	 *            HttpRequest object that contains the SAML response. We need the identity provider entity id from the response.
 	 *
@@ -169,47 +214,66 @@ public class SettingsBuilder {
 				String entityId = (String)issuers.get(0);
 				Base64.Encoder encoder = Base64.getEncoder();
 				String encodedEntityId = encoder.encodeToString(entityId.getBytes());
-				String url = String.format("http://localhost:8085/cast/api/v1/samlsso/idpEntity/%s", encodedEntityId);
-				URL urlObj = new URL(url);
-				HttpURLConnection conn = (HttpURLConnection) urlObj.openConnection();
-				conn.setRequestMethod("GET");
-				conn.setRequestProperty("Content-Type", "application/json");
+				String url = String.format("http://localhost:8085/cast/api/v1/samlprops/idpEntity/%s", encodedEntityId);
 
-				int status = conn.getResponseCode();
-				BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-				String inputLine;
-				StringBuffer content = new StringBuffer();
-				while ((inputLine = in.readLine()) != null) {
-					content.append(inputLine);
-				}
-
-				in.close();
-				conn.disconnect();
+				StringBuffer samlprops = fetchCastData(url);
 
 				JSONParser parser = new JSONParser();
-				JSONObject jsonObj = (JSONObject) parser.parse(content.toString());
+				JSONObject jsonObj = (JSONObject) parser.parse(samlprops.toString());
 
 				if (!jsonObj.isEmpty()) {
+					Long tenantId = null, applicationId = null;
+
 					Set<String> keys = jsonObj.keySet();
 
-					JSONObject obj = (JSONObject) jsonObj.get(keys.iterator().next());
-
-					keys = obj.keySet();
+					if (jsonObj.get("data") !=  null) {
+						JSONArray jsonArray = (JSONArray)jsonObj.get("data");
+						jsonObj = (JSONObject)jsonArray.get(0);
+						keys = jsonObj.keySet();
+					}
 
 					for (String propertyKey : keys) {
 						System.out.print(propertyKey + ": ");
-						System.out.println(obj.get(propertyKey));
+						System.out.println(jsonObj.get(propertyKey));
 						switch (propertyKey) {
                             case "idpEntity":
-                                this.samlData.put("idp_entityid", obj.get(propertyKey));
-                                break;
-                            case "certificate":
-                                this.samlData.put("idp_x509cert", obj.get(propertyKey));
+                                this.samlData.put("idp_entityid", jsonObj.get(propertyKey));
                                 break;
                             case "idpSSOUrl":
-                                this.samlData.put("idp_single_sign_on_service_url", obj.get(propertyKey));
+                                this.samlData.put("idp_single_sign_on_service_url", jsonObj.get(propertyKey));
                                 break;
+							case "tenantId":
+								tenantId = (Long)jsonObj.get(propertyKey);
+								break;
+							case "applicationId":
+								applicationId = (Long)jsonObj.get(propertyKey);
+								break;
                         }
+					}
+
+					//Now get the certificate
+					url = String.format("http://localhost:8085/cast/api/v1/certificates/tenant/%d/app/%d", tenantId, applicationId);
+					StringBuffer certificate = fetchCastData(url);
+
+					JSONObject certJsonObj = (JSONObject) parser.parse(certificate.toString());
+
+					if (certJsonObj.get("data") !=  null) {
+						JSONArray jsonArray = (JSONArray)certJsonObj.get("data");
+						certJsonObj = (JSONObject)jsonArray.get(0);
+					}
+
+					if (!certJsonObj.isEmpty()) {
+						keys = certJsonObj.keySet();
+
+						for (String propertyKey : keys) {
+							System.out.print(propertyKey + ": ");
+							System.out.println(certJsonObj.get(propertyKey));
+							switch (propertyKey) {
+								case "certificate":
+									this.samlData.put("idp_x509cert", certJsonObj.get(propertyKey));
+									break;
+							}
+						}
 					}
 				}
 			}
